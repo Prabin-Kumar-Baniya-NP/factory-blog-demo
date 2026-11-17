@@ -23,7 +23,7 @@ npm install
 | `npm start`   | Starts the server (`node src/server.js`) on `http://localhost:3000` by default. |
 | `npm test`    | Runs the test suite (`node --test test/*.test.js`).                          |
 
-The tests use in-memory databases and leave no files behind.
+The tests use in-memory or temporary databases and clean up after themselves.
 
 Example, with admin login enabled and sessions that survive restarts:
 
