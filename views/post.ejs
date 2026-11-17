@@ -1,0 +1,9 @@
+<%- include('partials/header') %>
+    <article class="post">
+      <h1><%= post.title %></h1>
+      <p class="post-meta"><time datetime="<%= post.createdAt %>"><%= date %></time></p>
+      <%# bodyHtml is sanitized by renderMarkdown (src/markdown.js); it is the only unescaped output. %>
+      <div class="post-body"><%- bodyHtml %></div>
+    </article>
+    <p><a href="/">Back to all posts</a></p>
+<%- include('partials/footer') %>

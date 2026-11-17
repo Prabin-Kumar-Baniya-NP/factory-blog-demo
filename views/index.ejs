@@ -1,4 +1,24 @@
 <%- include('partials/header') %>
-    <h1>Welcome</h1>
+    <h1>Latest posts</h1>
+<% if (posts.length === 0) { %>
     <p>No posts yet. Check back soon.</p>
+<% } else { %>
+<% posts.forEach((post) => { %>
+    <article class="post-summary">
+      <h2><a href="/posts/<%= post.slug %>"><%= post.title %></a></h2>
+      <p class="post-meta"><time datetime="<%= post.createdAt %>"><%= post.date %></time></p>
+      <p><%= post.excerpt %></p>
+    </article>
+<% }) %>
+<% } %>
+<% if (prevHref || nextHref) { %>
+    <nav class="pagination">
+<% if (prevHref) { %>
+      <a rel="prev" href="<%= prevHref %>">Newer posts</a>
+<% } %>
+<% if (nextHref) { %>
+      <a rel="next" href="<%= nextHref %>">Older posts</a>
+<% } %>
+    </nav>
+<% } %>
 <%- include('partials/footer') %>
