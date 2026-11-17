@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createPublicRouter } from './routes/public.js';
+import { createAdminRouter } from './routes/admin.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -12,8 +13,11 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
  * @param {object} [options]
  * @param {import('better-sqlite3').Database} [options.db] Database handle (injected),
  *   used by the public pages to read posts.
- * @param {string} [options.adminPassword] Admin password (used by later features).
- * @param {string} [options.sessionSecret] Session signing secret (used by later features).
+ * @param {string} [options.adminPassword] Password for the /admin pages. When unset
+ *   or empty, admin login is disabled and no password is accepted.
+ * @param {string} [options.sessionSecret] Secret used to sign the admin session
+ *   cookie. When unset, a random secret is generated per process, so admin
+ *   sessions do not survive a restart.
  */
 export function createApp({ db, adminPassword, sessionSecret } = {}) {
   const app = express();
@@ -28,6 +32,7 @@ export function createApp({ db, adminPassword, sessionSecret } = {}) {
   app.use(express.static(path.join(rootDir, 'public')));
 
   app.use(createPublicRouter({ db }));
+  app.use('/admin', createAdminRouter({ db, adminPassword, sessionSecret }));
 
   app.use((req, res) => {
     res.status(404).render('404', { title: 'Page not found' });
