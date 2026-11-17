@@ -40,6 +40,16 @@ main {
   padding-bottom: 2rem;
 }
 
+form.inline {
+  display: inline;
+}
+
+.post-form input[type="text"],
+.post-form textarea {
+  display: block;
+  width: 100%;
+}
+
 .site-footer {
   border-top: 1px solid #e5e5e5;
   color: #666;
