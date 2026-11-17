@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { createPublicRouter } from './routes/public.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -9,7 +10,8 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
  * this module never reads environment variables (see src/server.js).
  *
  * @param {object} [options]
- * @param {object} [options.db] Database handle (injected; used by later features).
+ * @param {import('better-sqlite3').Database} [options.db] Database handle (injected),
+ *   used by the public pages to read posts.
  * @param {string} [options.adminPassword] Admin password (used by later features).
  * @param {string} [options.sessionSecret] Session signing secret (used by later features).
  */
@@ -25,9 +27,7 @@ export function createApp({ db, adminPassword, sessionSecret } = {}) {
 
   app.use(express.static(path.join(rootDir, 'public')));
 
-  app.get('/', (req, res) => {
-    res.render('index', { title: 'Home' });
-  });
+  app.use(createPublicRouter({ db }));
 
   app.use((req, res) => {
     res.status(404).render('404', { title: 'Page not found' });
