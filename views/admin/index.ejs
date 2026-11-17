@@ -1,5 +1,6 @@
 <%- include('../partials/header') %>
     <h1>Admin</h1>
+    <p><a href="/admin/posts/new">New post</a></p>
 <% if (posts.length === 0) { %>
     <p>No posts yet.</p>
 <% } else { %>
@@ -8,6 +9,10 @@
       <li>
         <a href="/posts/<%= post.slug %>"><%= post.title %></a>
         <time datetime="<%= post.createdAt %>"><%= post.date %></time>
+        <a href="/admin/posts/<%= post.id %>/edit">Edit</a>
+        <form method="post" action="/admin/posts/<%= post.id %>/delete" class="inline">
+          <button type="submit">Delete</button>
+        </form>
       </li>
 <% }) %>
     </ul>
