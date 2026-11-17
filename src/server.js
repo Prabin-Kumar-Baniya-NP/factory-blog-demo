@@ -5,6 +5,10 @@ import { openSeededDb } from './seed.js';
 const port = Number(process.env.PORT) || 3000;
 const databasePath = process.env.DATABASE_PATH || './data/blog.db';
 
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('ADMIN_PASSWORD is not set; admin login is disabled');
+}
+
 const { db, isNew } = openSeededDb(databasePath);
 if (isNew) console.log(`Created database at ${databasePath} with sample posts`);
 

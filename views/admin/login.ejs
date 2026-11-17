@@ -1,0 +1,17 @@
+<%- include('../partials/header') %>
+    <h1>Admin login</h1>
+<% if (error) { %>
+    <p class="error" role="alert"><%= error %></p>
+<% } %>
+<% if (enabled) { %>
+    <form method="post" action="/admin/login">
+      <p>
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autofocus>
+      </p>
+      <p><button type="submit">Log in</button></p>
+    </form>
+<% } else { %>
+    <p class="notice">Admin login is disabled. Set the <code>ADMIN_PASSWORD</code> environment variable and restart the server to enable it.</p>
+<% } %>
+<%- include('../partials/footer') %>

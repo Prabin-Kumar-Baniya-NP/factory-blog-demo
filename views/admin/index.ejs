@@ -1,0 +1,18 @@
+<%- include('../partials/header') %>
+    <h1>Admin</h1>
+<% if (posts.length === 0) { %>
+    <p>No posts yet.</p>
+<% } else { %>
+    <ul class="admin-posts">
+<% posts.forEach((post) => { %>
+      <li>
+        <a href="/posts/<%= post.slug %>"><%= post.title %></a>
+        <time datetime="<%= post.createdAt %>"><%= post.date %></time>
+      </li>
+<% }) %>
+    </ul>
+<% } %>
+    <form method="post" action="/admin/logout">
+      <button type="submit">Log out</button>
+    </form>
+<%- include('../partials/footer') %>
