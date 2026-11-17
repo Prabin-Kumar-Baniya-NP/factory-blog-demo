@@ -3,7 +3,14 @@ import { randomBytes } from 'node:crypto';
 import express from 'express';
 import cookieSession from 'cookie-session';
 import { countPosts, listPosts } from '../posts.js';
-import { checkPassword, isLoginEnabled, requireAdmin } from '../auth.js';
+import {
+  SESSION_MAX_AGE_MS,
+  checkPassword,
+  createAdminSession,
+  createAuthenticate,
+  isLoginEnabled,
+  requireAdmin,
+} from '../auth.js';
 
 const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' });
 
@@ -25,24 +32,32 @@ export function createAdminRouter({ db, adminPassword, sessionSecret }) {
 
   // The session middleware lives inside the admin router, so public pages
   // never read or set the session cookie.
+  //
+  // Sessions are stateless: everything lives in the signed cookie and nothing
+  // is stored on the server. Logout therefore only clears the browser's copy;
+  // a copied cookie stays usable until it expires (SESSION_MAX_AGE_MS, also
+  // checked server-side via loginAt), the password changes, or login is
+  // disabled.
   router.use(
     cookieSession({
       name: 'session',
       keys: [secret],
       httpOnly: true,
       sameSite: 'lax',
+      maxAge: SESSION_MAX_AGE_MS,
     }),
   );
+  router.use(createAuthenticate({ adminPassword, secret }));
   router.use(express.urlencoded({ extended: false }));
 
   router.get('/login', (req, res) => {
-    if (req.session?.isAdmin === true) return res.redirect(302, '/admin');
+    if (req.isAdmin) return res.redirect(302, '/admin');
     res.render('admin/login', { title: 'Admin login', enabled, error: null });
   });
 
   router.post('/login', (req, res) => {
     if (checkPassword(req.body?.password, adminPassword)) {
-      req.session = { isAdmin: true };
+      req.session = createAdminSession({ adminPassword, secret });
       return res.redirect(302, '/admin');
     }
     res.status(401).render('admin/login', {

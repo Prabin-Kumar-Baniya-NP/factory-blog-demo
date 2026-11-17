@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto';
 import request from 'supertest';
 import { makeApp, makeDb, TEST_ADMIN_PASSWORD, TEST_SESSION_SECRET } from './helpers.js';
 import { createPost } from '../src/posts.js';
+import { createAdminSession, SESSION_MAX_AGE_MS } from '../src/auth.js';
 
 /** Set-Cookie headers as an array (empty when none were sent). */
 function setCookies(res) {
@@ -129,38 +130,112 @@ for (const adminPassword of [undefined, '']) {
   });
 }
 
+/** Encode a session the way cookie-session does. */
+function encodeSession(session) {
+  return Buffer.from(JSON.stringify(session)).toString('base64');
+}
+
+/** Sign a cookie value the way cookie-session (keygrip, sha1) does. */
+function sign(value, key) {
+  return createHmac('sha1', key)
+    .update(`session=${value}`)
+    .digest('base64')
+    .replace(/\/|\+|=/g, (x) => ({ '/': '_', '+': '-', '=': '' })[x]);
+}
+
+/** A Cookie header carrying `session` signed with `key`. */
+function signedSessionCookie(session, key = TEST_SESSION_SECRET) {
+  const value = encodeSession(session);
+  return `session=${value}; session.sig=${sign(value, key)}`;
+}
+
+/** Turn the Set-Cookie headers of a login response into a Cookie header. */
+function cookieHeaderFrom(res) {
+  return setCookies(res)
+    .map((c) => c.split(';')[0])
+    .join('; ');
+}
+
 test('a forged session cookie without a valid signature is rejected', async () => {
   const app = makeApp();
-  const value = Buffer.from(JSON.stringify({ isAdmin: true })).toString('base64');
+  const value = encodeSession(
+    createAdminSession({ adminPassword: TEST_ADMIN_PASSWORD, secret: TEST_SESSION_SECRET }),
+  );
 
   const noSig = await request(app).get('/admin').set('Cookie', `session=${value}`);
   assert.equal(noSig.status, 302);
   assert.equal(noSig.headers.location, '/admin/login');
 
-  const wrongSig = createHmac('sha1', 'not-the-secret')
-    .update(`session=${value}`)
-    .digest('base64')
-    .replace(/\/|\+|=/g, (x) => ({ '/': '_', '+': '-', '=': '' })[x]);
   const badSig = await request(app)
     .get('/admin')
-    .set('Cookie', `session=${value}; session.sig=${wrongSig}`);
+    .set('Cookie', `session=${value}; session.sig=${sign(value, 'not-the-secret')}`);
   assert.equal(badSig.status, 302);
   assert.equal(badSig.headers.location, '/admin/login');
 });
 
-test('a session signed with the configured secret is accepted', async () => {
+test('a valid session signed with the configured secret is accepted', async () => {
   // Sanity check for the forged-cookie test above: the same cookie signed with
   // the right key does work, so the rejection really is about the signature.
-  const value = Buffer.from(JSON.stringify({ isAdmin: true })).toString('base64');
-  const sig = createHmac('sha1', TEST_SESSION_SECRET)
-    .update(`session=${value}`)
-    .digest('base64')
-    .replace(/\/|\+|=/g, (x) => ({ '/': '_', '+': '-', '=': '' })[x]);
-  const res = await request(makeApp())
-    .get('/admin')
-    .set('Cookie', `session=${value}; session.sig=${sig}`);
+  const session = createAdminSession({
+    adminPassword: TEST_ADMIN_PASSWORD,
+    secret: TEST_SESSION_SECRET,
+  });
+  const res = await request(makeApp()).get('/admin').set('Cookie', signedSessionCookie(session));
   assert.equal(res.status, 200);
 });
+
+test('a correctly signed session without the password fingerprint is rejected', async () => {
+  const res = await request(makeApp())
+    .get('/admin')
+    .set('Cookie', signedSessionCookie({ isAdmin: true, loginAt: Date.now() }));
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.location, '/admin/login');
+});
+
+test('an expired session is rejected', async () => {
+  const session = createAdminSession({
+    adminPassword: TEST_ADMIN_PASSWORD,
+    secret: TEST_SESSION_SECRET,
+    now: Date.now() - SESSION_MAX_AGE_MS - 1000,
+  });
+  const res = await request(makeApp()).get('/admin').set('Cookie', signedSessionCookie(session));
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.location, '/admin/login');
+});
+
+test('the session cookie has a max age', async () => {
+  const res = await login(request.agent(makeApp()));
+  const session = setCookies(res).find((c) => /^session=[^;]+/.test(c));
+  assert.match(session, /;\s*expires=/i);
+});
+
+for (const [label, adminPassword] of [
+  ['login is disabled (undefined password)', undefined],
+  ['login is disabled (empty password)', ''],
+  ['the password has changed', 'a-new-password'],
+]) {
+  test(`an existing session stops working once ${label}`, async () => {
+    // Log in on one app, then present that cookie to an app with the same
+    // session secret but a different password configuration.
+    const loginRes = await login(request.agent(makeApp()));
+    assert.equal(loginRes.status, 302);
+    const cookie = cookieHeaderFrom(loginRes);
+
+    const stillValid = await request(makeApp()).get('/admin').set('Cookie', cookie);
+    assert.equal(stillValid.status, 200, 'the cookie works with the original password');
+
+    const app = makeApp({ adminPassword });
+    const adminRes = await request(app).get('/admin').set('Cookie', cookie);
+    assert.equal(adminRes.status, 302);
+    assert.equal(adminRes.headers.location, '/admin/login');
+    // The stale cookie is cleared rather than left in the browser.
+    assert.ok(setCookies(adminRes).some((c) => /^session=;/.test(c)));
+
+    // The login page must not bounce back to /admin (no redirect loop).
+    const loginPage = await request(app).get('/admin/login').set('Cookie', cookie);
+    assert.equal(loginPage.status, 200);
+  });
+}
 
 test('public pages do not set cookies', async () => {
   const res = await request(makeApp()).get('/');
