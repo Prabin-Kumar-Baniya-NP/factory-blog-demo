@@ -13,6 +13,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "ejs": "^7.0.2",
     "express": "^5.1.0"
   },
